@@ -1,63 +1,75 @@
-export type FranchiseCategory = 'anime' | 'comics' | 'movies' | 'games' | 'nostalgia' | 'sci-fi';
-export type TrendDirection = 'rising' | 'stable' | 'declining';
-export type UsageWorld = 'investment' | 'collection' | 'entertainment';
-export type ProductBadge = 'Limited Edition' | 'Exclusive' | 'Trending' | 'Best Seller' | 'Rare Find' | null;
-export type CommunityTag = 'Investment Tips' | 'Show & Tell' | 'New Drop' | 'Trading' | 'Discussion';
-
-export interface Franchise {
+export interface FranchiseTab {
   id: string;
-  name: string;
-  category: FranchiseCategory;
-  description: string;
-  tagline: string;
-  trendScore: number;
-  trendDirection: TrendDirection;
-  universeColor: string;
-  icons: [string, string];
+  label: string;
+  icon: string;
+  color: string;
 }
 
 export interface Product {
   id: string;
   title: string;
+  brand: string;
   price: number;
-  originalPrice: number | null;
-  badge: ProductBadge;
-  description: string;
-  pitch: string;
+  originalPrice?: number;
   rating: number;
   reviews: number;
-  emoji: string;
-}
-
-export interface WorldContent {
-  headline: string;
-  description: string;
-  products: Product[];
-}
-
-export interface TrendSignal {
-  label: string;
-  value: number;
-  change: number;
-  unit: string;
-  icon: string;
+  badge?: 'Limited' | 'Trending' | 'Exclusive' | 'New' | 'Best Seller';
+  prime: boolean;
+  image: string;           // loremflickr / picsum URL
+  category: string;
+  franchise: string;
   description: string;
 }
 
-export interface CommunityPost {
-  author: string;
-  avatar: string;
-  content: string;
-  likes: number;
-  replies: number;
+export interface CollectorPost {
+  id: string;
+  username: string;
+  badge: string;           // e.g. "1 Star Seller", "Top Collector"
+  badgeColor: string;
+  avatarSeed: string;      // DiceBear seed
+  avatarBg: string;
   timeAgo: string;
-  tag: CommunityTag;
+  content: string;
+  images: string[];        // up to 3 image URLs
+  likes: number;
+  comments: number;
+  tags?: string[];
 }
 
-export interface StorefrontContent {
-  investment: WorldContent;
-  collection: WorldContent;
-  entertainment: WorldContent;
-  trendSignals: TrendSignal[];
-  communityPosts: CommunityPost[];
+export interface LimitedDrop {
+  id: string;
+  title: string;
+  subtitle: string;
+  image: string;
+  endTime: Date;          // countdown target
+  stock: number;
+}
+
+export interface BiddingItem {
+  id: string;
+  title: string;
+  image: string;
+  currentBid: number;
+  originalPrice: number;
+  bidders: number;
+  endsIn: string;         // e.g. "12 min 24s"
+  reviews: number;
+}
+
+export interface TrendingItem {
+  rank: number;
+  title: string;
+  image: string;
+  price: number;
+  badge: string;
+  discount?: number;
+}
+
+export interface TopCollector {
+  rank: number;
+  username: string;
+  avatarSeed: string;
+  avatarBg: string;
+  score: number;
+  badge: string;
 }

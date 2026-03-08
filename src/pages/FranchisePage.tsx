@@ -1,289 +1,266 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { Franchise, StorefrontContent, UsageWorld } from '../types';
-import { FEATURED_FRANCHISES, WORLD_CONFIG } from '../data/franchises';
-import ProductCard from '../components/ProductCard';
-import TrendSignals from '../components/TrendSignals';
-import CommunityLayer from '../components/CommunityLayer';
-import LoadingSpinner from '../components/LoadingSpinner';
+import { useState } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { FRANCHISE_TABS, getProducts } from '../data/mockData';
+import type { Product } from '../types';
 
-export default function FranchisePage() {
-  const { id } = useParams<{ id: string }>();
-  const location = useLocation();
-  const navigate = useNavigate();
+const SORT_OPTIONS = ['Featured', 'Price: Low to High', 'Price: High to Low', 'Avg. Customer Review', 'Newest'];
+const BRANDS = ['Hot Toys', 'Hasbro', 'LEGO', 'Bandai', 'Good Smile', 'Funko', 'McFarlane', 'Sideshow'];
+const PRICE_RANGES = ['Under $25', '$25 to $50', '$50 to $100', '$100 to $200', '$200 & Above'];
 
-  // Franchise can come from router state (dynamic) or pre-defined list
-  const routeFranchise = location.state?.franchise as Franchise | undefined;
-  const predefined = FEATURED_FRANCHISES.find((f) => f.id === id);
-  const franchise: Franchise | undefined = routeFranchise || predefined;
+const BADGE_STYLES: Record<string, string> = {
+  'Limited':    'badge-limited',
+  'Trending':   'badge-trending',
+  'Exclusive':  'badge-exclusive',
+  'New':        'badge-new',
+  'Best Seller':'badge-trending',
+};
 
-  const [activeWorld, setActiveWorld] = useState<UsageWorld>('investment');
-  const [storefront, setStorefront] = useState<StorefrontContent | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [streamingText, setStreamingText] = useState('');
-  const [error, setError] = useState('');
-  const loadedFor = useRef<string | null>(null);
+function Stars({ rating }: { rating: number }) {
+  const full  = Math.floor(rating);
+  const half  = rating - full >= 0.5;
+  const empty = 5 - full - (half ? 1 : 0);
+  return (
+    <span className="az-stars">
+      {'★'.repeat(full)}{half ? '½' : ''}{'☆'.repeat(empty)}
+    </span>
+  );
+}
 
-  useEffect(() => {
-    if (franchise && loadedFor.current !== franchise.id) {
-      loadedFor.current = franchise.id;
-      loadStorefront(franchise);
-    }
-  }, [franchise]);
-
-  async function loadStorefront(f: Franchise) {
-    setLoading(true);
-    setStorefront(null);
-    setStreamingText('');
-    setError('');
-
-    try {
-      const res = await fetch('/api/storefront', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ franchise: { name: f.name, category: f.category, description: f.description } }),
-      });
-
-      if (!res.ok) throw new Error(`Server error: ${res.status}`);
-      if (!res.body) throw new Error('No response body');
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let fullContent = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const raw = line.slice(6).trim();
-          if (!raw) continue;
-
-          try {
-            const event = JSON.parse(raw);
-            if (event.type === 'delta') {
-              fullContent += event.content;
-              setStreamingText(fullContent);
-            } else if (event.type === 'done') {
-              const jsonStr = extractJSON(event.fullContent || fullContent);
-              if (jsonStr) {
-                const parsed = JSON.parse(jsonStr);
-                setStorefront(parsed as StorefrontContent);
-              }
-            } else if (event.type === 'error') {
-              setError(event.message);
-            }
-          } catch {
-            // Skip malformed events
-          }
-        }
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to generate storefront');
-    } finally {
-      setLoading(false);
-      setStreamingText('');
-    }
-  }
-
-  function extractJSON(text: string): string | null {
-    const objMatch = text.match(/\{[\s\S]*\}/);
-    return objMatch ? objMatch[0] : null;
-  }
-
-  if (!franchise) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center glass-card p-10">
-          <div className="text-4xl mb-4">🔍</div>
-          <h2 className="text-xl font-bold text-white mb-2">Franchise not found</h2>
-          <p className="text-kidult-muted mb-6">We couldn't find this franchise universe.</p>
-          <button className="btn-primary" onClick={() => navigate('/')}>← Back to Home</button>
-        </div>
-      </div>
-    );
-  }
-
-  const worlds: UsageWorld[] = ['investment', 'collection', 'entertainment'];
-  const currentWorld = storefront?.[activeWorld];
-  const cfg = WORLD_CONFIG[activeWorld];
+function ProductCard({ product }: { product: Product }) {
+  const [imgErr, setImgErr] = useState(false);
+  const [addedToCart, setAddedToCart] = useState(false);
+  const discount = product.originalPrice
+    ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+    : null;
 
   return (
-    <div className="min-h-screen">
-      {/* Franchise Hero */}
-      <div
-        className="border-b border-kidult-border relative overflow-hidden"
-        style={{ background: `linear-gradient(135deg, ${franchise.universeColor}08 0%, transparent 60%)` }}
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-kidult-muted hover:text-white transition-colors text-sm mb-6 flex items-center gap-1"
-          >
-            ← Back
-          </button>
+    <div className="az-card flex flex-col hover:border-az-orange/40 transition-colors group animate-fade-in">
+      {/* Image */}
+      <div className="relative overflow-hidden bg-az-nav2 rounded-t" style={{ paddingTop: '100%' }}>
+        {!imgErr ? (
+          <img
+            src={product.image}
+            alt={product.title}
+            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={() => setImgErr(true)}
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-5xl bg-az-nav2">
+            📦
+          </div>
+        )}
+        {product.badge && (
+          <div className="absolute top-2 left-2">
+            <span className={BADGE_STYLES[product.badge] || 'badge-new'}>{product.badge}</span>
+          </div>
+        )}
+        {product.prime && (
+          <div className="absolute top-2 right-2">
+            <span className="text-[10px] font-black text-blue-300 bg-blue-900/80 px-1.5 py-0.5 rounded">prime</span>
+          </div>
+        )}
+      </div>
 
-          <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-            {/* Icon */}
-            <div
-              className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl flex-shrink-0"
-              style={{
-                backgroundColor: `${franchise.universeColor}15`,
-                border: `2px solid ${franchise.universeColor}40`,
-              }}
-            >
-              {franchise.icons[0]}
-            </div>
+      {/* Info */}
+      <div className="p-3 flex flex-col flex-1">
+        <p className="text-az-link text-xs font-medium leading-snug mb-1 line-clamp-2 hover:underline cursor-pointer">
+          {product.title}
+        </p>
+        <p className="text-az-subtle text-[10px] mb-1">{product.brand}</p>
 
-            <div className="flex-1">
-              <div className="flex flex-wrap items-center gap-3 mb-2">
-                <h1 className="text-4xl font-black text-white">{franchise.name}</h1>
-                <span
-                  className="text-sm font-semibold px-3 py-1 rounded-full"
-                  style={{
-                    backgroundColor: `${franchise.universeColor}15`,
-                    color: franchise.universeColor,
-                    border: `1px solid ${franchise.universeColor}40`,
-                  }}
-                >
-                  {franchise.category}
-                </span>
-              </div>
-              <p className="text-kidult-muted italic mb-3 text-lg">{franchise.tagline}</p>
-              <p className="text-kidult-text/80 max-w-2xl leading-relaxed">{franchise.description}</p>
-            </div>
+        <div className="flex items-center gap-1 mb-1">
+          <Stars rating={product.rating} />
+          <span className="text-az-link text-[10px] hover:underline cursor-pointer">
+            {product.reviews.toLocaleString()}
+          </span>
+        </div>
 
-            {/* Trend score */}
-            <div className="glass-card p-4 text-center flex-shrink-0 min-w-[120px]">
-              <div
-                className="text-4xl font-black mb-1"
-                style={{ color: franchise.universeColor }}
-              >
-                {franchise.trendScore}
-              </div>
-              <div className="text-xs text-kidult-muted">Trend Score</div>
-              <div
-                className={`text-sm font-semibold mt-1 ${
-                  franchise.trendDirection === 'rising' ? 'text-kidult-green' : 'text-kidult-muted'
+        <div className="flex items-baseline gap-1.5 mb-1">
+          <span className="text-az-text font-black text-base">${product.price.toFixed(2)}</span>
+          {product.originalPrice && (
+            <>
+              <span className="text-az-subtle text-[11px] line-through">${product.originalPrice.toFixed(2)}</span>
+              {discount && <span className="text-az-green text-[11px] font-bold">-{discount}%</span>}
+            </>
+          )}
+        </div>
+
+        {product.prime && (
+          <p className="text-[10px] text-blue-400 mb-2">
+            <span className="font-black">prime</span> FREE delivery
+          </p>
+        )}
+
+        <p className="text-az-subtle text-[10px] line-clamp-2 mb-3 flex-1">{product.description}</p>
+
+        <button
+          className={`w-full text-xs py-2 rounded transition-all ${addedToCart ? 'bg-az-green text-white' : 'az-btn-orange'}`}
+          onClick={() => {
+            setAddedToCart(true);
+            setTimeout(() => setAddedToCart(false), 2000);
+          }}
+        >
+          {addedToCart ? '✓ Added to Cart' : 'Add to Cart'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function FranchisePage() {
+  const [searchParams] = useSearchParams();
+  const navigate      = useNavigate();
+  const franchiseId   = searchParams.get('franchise') || 'marvel';
+  const [sort, setSort] = useState('Featured');
+  const [priceFilter, setPriceFilter] = useState<string | null>(null);
+  const [brandFilter, setBrandFilter] = useState<Set<string>>(new Set());
+
+  const franchise = FRANCHISE_TABS.find((t) => t.id === franchiseId) ?? FRANCHISE_TABS[0];
+  let products    = getProducts(franchiseId);
+
+  // Apply price filter
+  if (priceFilter) {
+    products = products.filter((p) => {
+      if (priceFilter === 'Under $25')        return p.price < 25;
+      if (priceFilter === '$25 to $50')       return p.price >= 25  && p.price < 50;
+      if (priceFilter === '$50 to $100')      return p.price >= 50  && p.price < 100;
+      if (priceFilter === '$100 to $200')     return p.price >= 100 && p.price < 200;
+      if (priceFilter === '$200 & Above')     return p.price >= 200;
+      return true;
+    });
+  }
+
+  // Apply brand filter
+  if (brandFilter.size > 0) {
+    products = products.filter((p) => brandFilter.has(p.brand));
+  }
+
+  // Apply sort
+  if (sort === 'Price: Low to High')    products = [...products].sort((a, b) => a.price - b.price);
+  if (sort === 'Price: High to Low')    products = [...products].sort((a, b) => b.price - a.price);
+  if (sort === 'Avg. Customer Review')  products = [...products].sort((a, b) => b.rating - a.rating);
+
+  const toggleBrand = (brand: string) => {
+    setBrandFilter((prev) => {
+      const next = new Set(prev);
+      next.has(brand) ? next.delete(brand) : next.add(brand);
+      return next;
+    });
+  };
+
+  return (
+    <div className="max-w-[1200px] mx-auto px-3 py-4">
+      {/* Breadcrumb */}
+      <div className="text-[11px] text-az-subtle mb-2 flex items-center gap-1">
+        <span className="az-link cursor-pointer" onClick={() => navigate('/')}>Amazon Kidult</span>
+        <span>›</span>
+        <span className="az-link cursor-pointer">{franchise.label}</span>
+        <span>›</span>
+        <span>Collectibles &amp; Figures</span>
+      </div>
+
+      {/* Page header */}
+      <div className="flex items-center gap-3 mb-4">
+        <span className="text-3xl">{franchise.icon}</span>
+        <div>
+          <h1 className="text-xl font-black text-az-text">{franchise.label} Collectibles</h1>
+          <p className="text-az-subtle text-xs">{products.length.toLocaleString()} results</p>
+        </div>
+      </div>
+
+      <div className="flex gap-4">
+        {/* Filters sidebar */}
+        <div className="w-44 flex-shrink-0 space-y-4">
+          {/* Prime */}
+          <div>
+            <h4 className="text-az-text font-bold text-xs mb-2">Amazon Prime</h4>
+            <label className="flex items-center gap-2 text-az-muted text-[11px] cursor-pointer hover:text-az-orange">
+              <input type="checkbox" className="accent-az-orange" />
+              <span className="text-blue-400 font-bold text-[10px]">prime</span> Eligible
+            </label>
+          </div>
+
+          {/* Price */}
+          <div>
+            <h4 className="text-az-text font-bold text-xs mb-2">Price</h4>
+            {PRICE_RANGES.map((range) => (
+              <label key={range} className="flex items-center gap-2 text-[11px] text-az-muted cursor-pointer hover:text-az-orange mb-1">
+                <input
+                  type="radio"
+                  name="price"
+                  checked={priceFilter === range}
+                  onChange={() => setPriceFilter(priceFilter === range ? null : range)}
+                  className="accent-az-orange"
+                />
+                {range}
+              </label>
+            ))}
+          </div>
+
+          {/* Brand */}
+          <div>
+            <h4 className="text-az-text font-bold text-xs mb-2">Brand</h4>
+            {BRANDS.map((brand) => (
+              <label key={brand} className="flex items-center gap-2 text-[11px] text-az-muted cursor-pointer hover:text-az-orange mb-1">
+                <input
+                  type="checkbox"
+                  checked={brandFilter.has(brand)}
+                  onChange={() => toggleBrand(brand)}
+                  className="accent-az-orange"
+                />
+                {brand}
+              </label>
+            ))}
+          </div>
+
+          {/* Condition */}
+          <div>
+            <h4 className="text-az-text font-bold text-xs mb-2">Condition</h4>
+            {['New', 'Used', 'Renewed', 'Collector Grade'].map((c) => (
+              <label key={c} className="flex items-center gap-2 text-[11px] text-az-muted cursor-pointer hover:text-az-orange mb-1">
+                <input type="checkbox" className="accent-az-orange" />
+                {c}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Products */}
+        <div className="flex-1 min-w-0">
+          {/* Sort bar */}
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <span className="text-az-muted text-xs">Sort by:</span>
+            {SORT_OPTIONS.map((opt) => (
+              <button
+                key={opt}
+                onClick={() => setSort(opt)}
+                className={`text-xs px-3 py-1 rounded-sm transition-colors border ${
+                  sort === opt
+                    ? 'bg-az-orange text-black border-amber-600 font-bold'
+                    : 'border-az-border text-az-muted hover:border-az-orange/50 hover:text-az-text'
                 }`}
               >
-                {franchise.trendDirection === 'rising' ? '↑ Rising' : franchise.trendDirection === 'declining' ? '↓ Declining' : '→ Stable'}
-              </div>
+                {opt}
+              </button>
+            ))}
+          </div>
+
+          {products.length === 0 ? (
+            <div className="az-card p-10 text-center">
+              <div className="text-4xl mb-3">🔍</div>
+              <p className="text-az-muted">No products match your filters.</p>
+              <button className="az-btn-outline mt-3" onClick={() => { setPriceFilter(null); setBrandFilter(new Set()); }}>
+                Clear filters
+              </button>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* World Tabs */}
-      <div className="border-b border-kidult-border sticky top-16 z-40 bg-kidult-bg/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-0 overflow-x-auto">
-            {worlds.map((world) => {
-              const wCfg = WORLD_CONFIG[world];
-              const isActive = activeWorld === world;
-              return (
-                <button
-                  key={world}
-                  onClick={() => setActiveWorld(world)}
-                  className={`flex items-center gap-2 px-5 py-4 text-sm font-semibold border-b-2 transition-all duration-200 whitespace-nowrap
-                    ${isActive
-                      ? `border-kidult-orange text-white`
-                      : 'border-transparent text-kidult-muted hover:text-white hover:border-kidult-border'
-                    }`}
-                >
-                  <span>{wCfg.icon}</span>
-                  <span>{wCfg.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        {loading && (
-          <div className="max-w-2xl mx-auto">
-            <LoadingSpinner
-              streaming
-              streamingText={streamingText}
-              text={`Generating ${franchise.name} storefront...`}
-            />
-          </div>
-        )}
-
-        {error && (
-          <div className="glass-card p-6 border-red-400/30 text-center max-w-md mx-auto mb-8">
-            <div className="text-2xl mb-2">⚠️</div>
-            <div className="text-red-400 font-semibold mb-1">Storefront Generation Error</div>
-            <div className="text-sm text-kidult-muted">{error}</div>
-            <button className="btn-secondary mt-4 text-sm" onClick={() => loadStorefront(franchise)}>
-              Retry
-            </button>
-          </div>
-        )}
-
-        {storefront && (
-          <div className="animate-fade-in">
-            <div className="flex flex-col lg:flex-row gap-8">
-              {/* Main - Products */}
-              <div className="flex-1">
-                {currentWorld && (
-                  <>
-                    <div className={`${cfg.bgColor} border ${cfg.borderColor} rounded-2xl p-5 mb-6`}>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xl">{cfg.icon}</span>
-                        <h2 className={`text-xl font-bold ${cfg.color}`}>{currentWorld.headline}</h2>
-                      </div>
-                      <p className="text-sm text-kidult-muted">{currentWorld.description}</p>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {currentWorld.products.map((product) => (
-                        <ProductCard key={product.id} product={product} world={activeWorld} />
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Sidebar - Trend Signals */}
-              <div className="w-full lg:w-72 flex-shrink-0">
-                <TrendSignals signals={storefront.trendSignals} />
-
-                {/* Quick world switch */}
-                <div className="glass-card p-4 mt-4">
-                  <h4 className="text-sm font-semibold text-white mb-3">Explore Other Worlds</h4>
-                  {worlds.filter((w) => w !== activeWorld).map((world) => {
-                    const wCfg = WORLD_CONFIG[world];
-                    return (
-                      <button
-                        key={world}
-                        onClick={() => setActiveWorld(world)}
-                        className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-kidult-border/50 transition-colors mb-2 text-left"
-                      >
-                        <span className="text-xl">{wCfg.icon}</span>
-                        <div>
-                          <div className="text-sm font-medium text-white">{wCfg.label}</div>
-                          <div className="text-xs text-kidult-muted">{wCfg.description}</div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {products.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
             </div>
-
-            {/* Community */}
-            <CommunityLayer posts={storefront.communityPosts} franchiseName={franchise.name} />
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

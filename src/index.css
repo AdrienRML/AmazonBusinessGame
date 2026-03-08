@@ -4,63 +4,44 @@
 
 @layer base {
   body {
-    @apply bg-kidult-bg text-kidult-text font-sans antialiased;
+    @apply bg-az-bg text-az-text;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 13px;
   }
-
-  ::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  ::-webkit-scrollbar-track {
-    @apply bg-kidult-bg;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    @apply bg-kidult-border rounded-full;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-kidult-muted;
-  }
+  a { @apply hover:text-az-orange cursor-pointer; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-az-bg; }
+  ::-webkit-scrollbar-thumb { @apply bg-az-border rounded-full; }
 }
 
 @layer components {
-  .glass-card {
-    @apply bg-kidult-card border border-kidult-border rounded-2xl;
+  .az-card {
+    @apply bg-az-card border border-az-border rounded;
   }
-
-  .glow-orange {
-    box-shadow: 0 0 20px rgba(255, 153, 0, 0.15);
+  .az-btn-orange {
+    @apply bg-az-orange text-black text-xs font-bold px-4 py-2 rounded-sm
+           hover:bg-az-hover transition-colors cursor-pointer border border-amber-600;
   }
-
-  .glow-blue {
-    box-shadow: 0 0 20px rgba(0, 180, 216, 0.15);
+  .az-btn-outline {
+    @apply bg-az-nav border border-az-border text-az-text text-xs px-4 py-2 rounded-sm
+           hover:bg-az-nav2 transition-colors cursor-pointer;
   }
-
-  .btn-primary {
-    @apply bg-kidult-orange text-black font-semibold px-6 py-3 rounded-xl
-           hover:bg-amber-400 transition-all duration-200 active:scale-95;
+  .az-link {
+    @apply text-az-link hover:text-az-orange hover:underline cursor-pointer;
   }
-
-  .btn-secondary {
-    @apply bg-kidult-card border border-kidult-border text-kidult-text font-medium px-6 py-3
-           rounded-xl hover:border-kidult-orange/50 hover:bg-kidult-card transition-all duration-200;
+  .az-stars {
+    @apply text-az-orange text-xs;
   }
-
-  .trend-rising {
-    @apply text-kidult-green;
+  .badge-limited {
+    @apply bg-red-700 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wide;
   }
-
-  .trend-declining {
-    @apply text-red-400;
+  .badge-trending {
+    @apply bg-az-orange text-black text-[10px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wide;
   }
-
-  .trend-stable {
-    @apply text-kidult-muted;
+  .badge-exclusive {
+    @apply bg-purple-700 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wide;
   }
-
-  .streaming-cursor::after {
-    content: '▋';
-    @apply animate-pulse-glow text-kidult-orange ml-0.5;
+  .badge-new {
+    @apply bg-az-green text-white text-[10px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wide;
   }
 }

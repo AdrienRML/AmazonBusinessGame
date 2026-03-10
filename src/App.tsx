@@ -4,15 +4,29 @@ import HubPage from './pages/HubPage';
 import FranchisePage from './pages/FranchisePage';
 import ConceptPage from './pages/ConceptPage';
 
+// Franchise-specific full-page background gradients
+const FRANCHISE_BG: Record<string, string> = {
+  marvel:          'linear-gradient(160deg, #1c0000 0%, #0f0005 45%, #131A22 100%)',
+  pokemon:         'linear-gradient(160deg, #0a0e1f 0%, #0d1108 45%, #131A22 100%)',
+  lego:            'linear-gradient(160deg, #1a0a00 0%, #100800 45%, #131A22 100%)',
+  'action-figures':'linear-gradient(160deg, #001a1f 0%, #000d14 45%, #131A22 100%)',
+  'retro-gaming':  'linear-gradient(160deg, #0f001a 0%, #09000f 45%, #131A22 100%)',
+  'limited-drops': 'linear-gradient(160deg, #1a0005 0%, #0f0008 45%, #131A22 100%)',
+  'fan-cards':     'linear-gradient(160deg, #001a10 0%, #000f0a 45%, #131A22 100%)',
+};
+
 function AppContent() {
   const location  = useLocation();
   const params    = new URLSearchParams(location.search);
   const franchise = params.get('franchise');
 
   const isConceptPage = location.pathname === '/concept';
+  const bgStyle = franchise && FRANCHISE_BG[franchise]
+    ? { background: FRANCHISE_BG[franchise] }
+    : {};
 
   return (
-    <div className="min-h-screen bg-az-bg">
+    <div className="min-h-screen bg-az-bg" style={bgStyle}>
       <Header />
       {isConceptPage
         ? <ConceptPage />
